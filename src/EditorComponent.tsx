@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import EditorJS, { OutputData } from '@editorjs/editorjs';
 import Header from '@editorjs/header';
 import List from '@editorjs/list';
@@ -17,51 +17,71 @@ interface EditorProps {
   holder: string;
 }
 
-const EditorComponent: React.FC<EditorProps> = ({ data, onChange, holder }) => {
-  const editorRef = useRef<EditorJS | null>(null);
+export interface EditorInstance {
+  clear: () => Promise<void>;
+  render: (data: OutputData) => Promise<void>;
+}
 
-  useEffect(() => {
-    if (!editorRef.current) {
-      const editor = new EditorJS({
-        holder: holder,
-        tools: {
-          header: Header,
-          list: List,
-          paragraph: Paragraph,
-          quote: Quote,
-          marker: Marker,
-          table: Table,
-          code: Code,
-          link: Link,
-          image: Image,
-          checklist: Checklist,
-        },
-        data: data || {
-          blocks: [
-            {
-              type: 'paragraph',
-              data: {
-                text: 'Начните писать здесь...'
-              }
-            }
-          ]
-        },
-        async onChange(api) {
-          const savedData = await api.saver.save();
-          onChange(savedData);
+const EditorComponent = forwardRef<EditorInstance, EditorProps>(
+  ({ data, onChange, holder }, ref) => {
+    const editorInstance = useRef<EditorJS | null>(null);
+
+    useImperativeHandle(ref, () => ({
+      clear: async () => {
+        if (editorInstance.current) {
+          await editorInstance.current.clear();
         }
-      });
-      editorRef.current = editor;
-    }
-
-    return () => {
-      if (editorRef.current && editorRef.current.destroy) {
-        editorRef.current.destroy();
+      },
+      render: async (data: OutputData) => {
+        if (editorInstance.current) {
+          await editorInstance.current.render(data);
+        }
       }
-    };
-  }, []);
+    }));
 
-  return <div id={holder} />;
-};
+    useEffect(() => {
+      if (!editorInstance.current) {
+        const editor = new EditorJS({
+          holder: holder,
+          tools: {
+            header: Header,
+            list: List,
+            paragraph: Paragraph,
+            quote: Quote,
+            marker: Marker,
+            table: Table,
+            code: Code,
+            link: Link,
+            image: Image,
+            checklist: Checklist,
+          },
+          data: data || {
+            blocks: [
+              {
+                type: 'paragraph',
+                data: {
+                  text: 'Начните писать здесь...'
+                }
+              }
+            ]
+          },
+          async onChange(api) {
+            const savedData = await api.saver.save();
+            onChange(savedData);
+          }
+        });
+        editorInstance.current = editor;
+      }
+
+      return () => {
+        if (editorInstance.current && editorInstance.current.destroy) {
+          editorInstance.current.destroy();
+        }
+      };
+    }, []);
+
+    return <div id={holder} />;
+  }
+);
 
 export default EditorComponent;
